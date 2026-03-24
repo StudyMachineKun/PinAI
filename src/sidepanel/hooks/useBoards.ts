@@ -15,6 +15,23 @@ export function useBoards() {
 
   useEffect(() => {
     loadBoards();
+
+    // Reload when side panel becomes visible (boards may have been created from content scripts)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') loadBoards();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    // Reload when background notifies that data changed (board created, item saved, etc.)
+    const onMessage = (message: { type: string }) => {
+      if (message.type === 'DATA_CHANGED') loadBoards();
+    };
+    chrome.runtime.onMessage.addListener(onMessage);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      chrome.runtime.onMessage.removeListener(onMessage);
+    };
   }, [loadBoards]);
 
   const createBoard = useCallback(async (name: string, color: string, description?: string) => {

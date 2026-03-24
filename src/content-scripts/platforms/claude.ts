@@ -1,16 +1,15 @@
 import type { PlatformAdapter } from '../platform-adapter';
 import { createPinButton, flashPinButtonSuccess } from '../pin-button';
 import { showSaveDialog, type SaveDialogData } from '../save-dialog';
-import { getShadowRoot } from '../shadow-host';
+import { getShadowRoot, isContextValid } from '../shadow-host';
 
 // Last verified: 2026-03-24
 const SELECTORS = {
-  assistantMessage: '[data-is-streaming]',
-  assistantMessageContainer: '.font-claude-message',
-  userMessage: '.font-user-message',
-  chatInput: '[contenteditable="true"].ProseMirror',
+  assistantMessage: '.font-claude-response',
+  userMessage: '.font-user-message', 
+  messageContainer: '.contents',
+  chatInput: '[contenteditable="true"]',
   conversationTitle: 'title',
-  conversationContainer: '[data-testid="conversation-messages"], .flex.flex-col.gap-3',
 } as const;
 
 const PINNED_ATTR = 'data-pinboard-pinned';
@@ -19,24 +18,22 @@ const claudeAdapter: PlatformAdapter = {
   platform: 'claude',
 
   getAssistantMessages(): HTMLElement[] {
-    // Claude wraps each assistant message in a container with .font-claude-message
-    const els = document.querySelectorAll<HTMLElement>(SELECTORS.assistantMessageContainer);
+    const els = document.querySelectorAll<HTMLElement>(SELECTORS.assistantMessage);
     return Array.from(els);
   },
 
   extractContent(messageEl: HTMLElement): string {
-    // Get the rendered markdown HTML as-is (preserves code blocks, formatting)
-    const clone = messageEl.cloneNode(true) as HTMLElement;
-    // Remove any injected Pinboard elements
-    clone.querySelectorAll('[data-pinboard]').forEach((el) => el.remove());
-    return clone.innerHTML;
+    const contentParts: string[] = [];
+    messageEl.querySelectorAll('p.font-claude-response-body, pre, ol, ul, h1, h2, h3, h4, table').forEach(el => {
+      contentParts.push(el.outerHTML);
+    });
+    return contentParts.join('\n');
   },
 
   extractPrecedingPrompt(messageEl: HTMLElement): string | null {
     // Walk up to the conversation turn container, then find the previous user message
     try {
-      const turn = messageEl.closest('[data-testid="conversation-turn"]')
-        || messageEl.closest('.group');
+      const turn = messageEl.closest(SELECTORS.messageContainer);
       if (!turn) return null;
 
       let prev = turn.previousElementSibling;
@@ -98,7 +95,10 @@ const claudeAdapter: PlatformAdapter = {
       onPin: (el) => {
         const data: SaveDialogData = {
           content: claudeAdapter.extractContent(el),
-          contentPlain: el.textContent?.trim() || '',
+          contentPlain: Array.from(el.querySelectorAll('p.font-claude-response-body, pre, ol, ul, h1, h2, h3, h4, table'))
+            .map(e => e.textContent?.trim() ?? '')
+            .filter(t => t.length > 0)
+            .join('\n'),
           promptContext: claudeAdapter.extractPrecedingPrompt(el) || undefined,
           platform: 'claude',
           conversationTitle: claudeAdapter.getConversationTitle() || undefined,
@@ -132,17 +132,16 @@ const claudeAdapter: PlatformAdapter = {
   },
 
   observeNewMessages(callback: (messageEl: HTMLElement) => void): MutationObserver {
-    const container = document.querySelector(SELECTORS.conversationContainer) || document.body;
+    const container = document.body;
 
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {
           if (!(node instanceof HTMLElement)) continue;
 
-          // Check if the added node contains an assistant message
-          const messages = node.matches(SELECTORS.assistantMessageContainer)
+          const messages = node.matches(SELECTORS.assistantMessage)
             ? [node]
-            : Array.from(node.querySelectorAll<HTMLElement>(SELECTORS.assistantMessageContainer));
+            : Array.from(node.querySelectorAll<HTMLElement>(SELECTORS.assistantMessage));
 
           for (const msg of messages) {
             if (msg.hasAttribute(PINNED_ATTR)) continue;
@@ -174,7 +173,7 @@ function waitForStreamingComplete(messageEl: HTMLElement, callback: (el: HTMLEle
     clearTimeout(timeout);
 
     // Check for "response complete" indicators: copy button or feedback thumbs
-    const hasActions = messageEl.closest('[data-testid="conversation-turn"]')
+    const hasActions = messageEl.closest(SELECTORS.messageContainer)
       ?.querySelector('button[aria-label="Copy"]');
     if (hasActions) {
       done();
@@ -194,6 +193,7 @@ function waitForStreamingComplete(messageEl: HTMLElement, callback: (el: HTMLEle
 // --- Initialization ---
 
 function init() {
+  if (!isContextValid()) return;
   console.log('[Pinboard] Content script loaded on claude.ai');
 
   // Inject pin buttons on existing messages
@@ -204,16 +204,18 @@ function init() {
 
   // Watch for new messages
   claudeAdapter.observeNewMessages((msg) => {
+    if (!isContextValid()) return;
     claudeAdapter.injectPinButton(msg);
   });
 
   // Handle SPA navigation — re-scan when URL changes
   let lastUrl = location.href;
   const urlObserver = new MutationObserver(() => {
+    if (!isContextValid()) { urlObserver.disconnect(); return; }
     if (location.href !== lastUrl) {
       lastUrl = location.href;
-      // Delay to let new page content load
       setTimeout(() => {
+        if (!isContextValid()) return;
         const msgs = claudeAdapter.getAssistantMessages();
         for (const msg of msgs) {
           claudeAdapter.injectPinButton(msg);

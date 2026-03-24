@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { db } from '../../storage/db';
 import type { SavedItem } from '../../storage/models';
 
@@ -21,6 +21,14 @@ export function useSavedItems(boardId?: string) {
     setItems(result);
     setLoading(false);
   }, [boardId]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') loadItems();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [loadItems]);
 
   const updateItem = useCallback(async (id: string, changes: Partial<SavedItem>) => {
     await db.savedItems.update(id, { ...changes, updatedAt: Date.now() });

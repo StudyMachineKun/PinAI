@@ -225,3 +225,18 @@
   flex-wrap: wrap;
   margin-top: 4px;
 }
+
+.pb-btn-link {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 6px;
+  font-family: inherit;
+}
+
+.pb-btn-link:hover {
+  color: #6C5CE7;
+}

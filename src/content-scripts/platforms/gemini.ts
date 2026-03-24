@@ -1,7 +1,7 @@
 import type { PlatformAdapter } from '../platform-adapter';
 import { createPinButton, flashPinButtonSuccess } from '../pin-button';
 import { showSaveDialog, type SaveDialogData } from '../save-dialog';
-import { getShadowRoot } from '../shadow-host';
+import { getShadowRoot, isContextValid } from '../shadow-host';
 
 // Last verified: 2026-03-24
 const SELECTORS = {
@@ -163,6 +163,7 @@ function waitForStreamingComplete(messageEl: HTMLElement, callback: (el: HTMLEle
 }
 
 function init() {
+  if (!isContextValid()) return;
   console.log('[Pinboard] Content script loaded on gemini.google.com');
 
   const existing = geminiAdapter.getAssistantMessages();
@@ -171,15 +172,17 @@ function init() {
   }
 
   geminiAdapter.observeNewMessages((msg) => {
+    if (!isContextValid()) return;
     geminiAdapter.injectPinButton(msg);
   });
 
-  // SPA navigation
   let lastUrl = location.href;
   const urlObserver = new MutationObserver(() => {
+    if (!isContextValid()) { urlObserver.disconnect(); return; }
     if (location.href !== lastUrl) {
       lastUrl = location.href;
       setTimeout(() => {
+        if (!isContextValid()) return;
         const msgs = geminiAdapter.getAssistantMessages();
         for (const msg of msgs) {
           geminiAdapter.injectPinButton(msg);

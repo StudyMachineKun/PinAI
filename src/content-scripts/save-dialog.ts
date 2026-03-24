@@ -40,6 +40,9 @@ export function showSaveDialog(options: SaveDialogOptions) {
   let selectedBoardId = '';
   let showNewBoardForm = false;
   let selectedColor = DEFAULT_BOARD_COLORS[0];
+  let newBoardName = '';
+  let noteValue = '';
+  let actionValue = '';
 
   const dialogState: DialogState = {
     data,
@@ -50,14 +53,22 @@ export function showSaveDialog(options: SaveDialogOptions) {
     setShowNewBoardForm: (v: boolean) => { showNewBoardForm = v; },
     getSelectedColor: () => selectedColor,
     setSelectedColor: (c: string) => { selectedColor = c; },
+    getNewBoardName: () => newBoardName,
+    setNewBoardName: (n: string) => { newBoardName = n; },
+    getNoteValue: () => noteValue,
+    setNoteValue: (n: string) => { noteValue = n; },
+    getActionValue: () => actionValue,
+    setActionValue: (a: string) => { actionValue = a; },
     rerender: () => {
-      dialog.innerHTML = buildDialogHTML(boards, selectedBoardId, showNewBoardForm, selectedColor);
+      // Preserve input values before rebuilding
+      captureInputValues(dialog, dialogState);
+      dialog.innerHTML = buildDialogHTML(boards, selectedBoardId, showNewBoardForm, selectedColor, newBoardName, noteValue, actionValue);
       attachDialogListeners(dialog, shadowRoot, dialogState);
     },
     onSaved,
   };
 
-  dialog.innerHTML = buildDialogHTML(boards, selectedBoardId, showNewBoardForm, selectedColor);
+  dialog.innerHTML = buildDialogHTML(boards, selectedBoardId, showNewBoardForm, selectedColor, newBoardName, noteValue, actionValue);
   overlay.appendChild(dialog);
   shadowRoot.appendChild(overlay);
 
@@ -98,26 +109,50 @@ export function closeSaveDialog(shadowRoot: ShadowRoot) {
   if (existing) existing.remove();
 }
 
+/** Capture current input values before a rerender destroys them. */
+function captureInputValues(dialog: HTMLElement, state: DialogState) {
+  const nameInput = dialog.querySelector('#pb-new-board-name') as HTMLInputElement | null;
+  const noteInput = dialog.querySelector('#pb-note') as HTMLInputElement | null;
+  const actionInput = dialog.querySelector('#pb-action') as HTMLInputElement | null;
+  if (nameInput) state.setNewBoardName(nameInput.value);
+  if (noteInput) state.setNoteValue(noteInput.value);
+  if (actionInput) state.setActionValue(actionInput.value);
+}
+
 function buildDialogHTML(
   boards: Board[],
   selectedBoardId: string,
   showNewBoardForm: boolean,
-  selectedColor: string
+  selectedColor: string,
+  newBoardName: string,
+  noteValue: string,
+  actionValue: string,
 ): string {
-  const boardOptions = boards
-    .map((b) => `<option value="${b.id}" ${b.id === selectedBoardId ? 'selected' : ''}>${b.name}</option>`)
-    .join('');
-
   const colorDots = DEFAULT_BOARD_COLORS
     .map((c) => `<span class="pb-color-dot ${c === selectedColor ? 'pb-color-dot--selected' : ''}" data-color="${c}" style="background:${c}"></span>`)
     .join('');
 
-  const newBoardSection = showNewBoardForm
-    ? `<div class="pb-new-board-form">
-        <input class="pb-input" id="pb-new-board-name" placeholder="Board name" autofocus />
+  // Board field: either a dropdown OR the new board form (not both)
+  let boardField: string;
+  if (showNewBoardForm) {
+    boardField = `
+      <div class="pb-new-board-form">
+        <input class="pb-input" id="pb-new-board-name" placeholder="Board name" value="${escapeAttr(newBoardName)}" autofocus />
       </div>
-      <div class="pb-color-picker">${colorDots}</div>`
-    : '';
+      <div class="pb-color-picker">${colorDots}</div>
+      <button class="pb-btn-link" id="pb-back-to-boards">Back to boards</button>
+    `;
+  } else {
+    const boardOptions = boards
+      .map((b) => `<option value="${b.id}" ${b.id === selectedBoardId ? 'selected' : ''}>${escapeHTML(b.name)}</option>`)
+      .join('');
+    boardField = `
+      <select class="pb-select" id="pb-board-select">
+        ${boardOptions}
+        <option value="__new__">+ New board</option>
+      </select>
+    `;
+  }
 
   return `
     <div class="pb-dialog-header">
@@ -127,23 +162,19 @@ function buildDialogHTML(
 
     <div class="pb-field">
       <label class="pb-label">Board</label>
-      <select class="pb-select" id="pb-board-select">
-        ${boardOptions}
-        <option value="__new__">+ New board</option>
-      </select>
-      ${newBoardSection}
+      ${boardField}
     </div>
 
     <div class="pb-field">
       <label class="pb-label">Note (optional)</label>
-      <input class="pb-input" id="pb-note" placeholder="Why are you saving this?" />
+      <input class="pb-input" id="pb-note" placeholder="Why are you saving this?" value="${escapeAttr(noteValue)}" />
     </div>
 
     <div class="pb-field">
       <label class="pb-label">Action (optional)</label>
       <div class="pb-action-row">
         <span class="pb-action-icon"></span>
-        <input class="pb-input" id="pb-action" placeholder="What's your next step?" />
+        <input class="pb-input" id="pb-action" placeholder="What's your next step?" value="${escapeAttr(actionValue)}" />
       </div>
     </div>
 
@@ -152,6 +183,14 @@ function buildDialogHTML(
       <button class="pb-btn pb-btn-primary" id="pb-save">Save</button>
     </div>
   `;
+}
+
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function escapeHTML(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 interface DialogState {
@@ -163,6 +202,12 @@ interface DialogState {
   setShowNewBoardForm: (v: boolean) => void;
   getSelectedColor: () => string;
   setSelectedColor: (c: string) => void;
+  getNewBoardName: () => string;
+  setNewBoardName: (n: string) => void;
+  getNoteValue: () => string;
+  setNoteValue: (n: string) => void;
+  getActionValue: () => string;
+  setActionValue: (a: string) => void;
   rerender: () => void;
   onSaved: () => void;
 }
@@ -176,6 +221,12 @@ function attachDialogListeners(
   const cancelBtn = dialog.querySelector('#pb-cancel');
   const saveBtn = dialog.querySelector('#pb-save');
   const boardSelect = dialog.querySelector('#pb-board-select') as HTMLSelectElement | null;
+  const backToBoards = dialog.querySelector('#pb-back-to-boards');
+
+  // Stop keyboard events from reaching the host page (e.g. Claude's chat input)
+  dialog.addEventListener('keydown', (e) => e.stopPropagation());
+  dialog.addEventListener('keyup', (e) => e.stopPropagation());
+  dialog.addEventListener('keypress', (e) => e.stopPropagation());
 
   closeBtn?.addEventListener('click', () => closeSaveDialog(shadowRoot));
   cancelBtn?.addEventListener('click', () => closeSaveDialog(shadowRoot));
@@ -186,8 +237,14 @@ function attachDialogListeners(
       state.rerender();
     } else {
       state.setSelectedBoardId(boardSelect.value);
-      state.setShowNewBoardForm(false);
     }
+  });
+
+  // "Back to boards" link in new board form
+  backToBoards?.addEventListener('click', () => {
+    state.setShowNewBoardForm(false);
+    state.setNewBoardName('');
+    state.rerender();
   });
 
   // Color picker

@@ -24,7 +24,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/claude.ts-loader-DgWsZmmT.js"
+        "assets/claude.ts-loader-B_XHGuhO.js"
       ],
       "matches": [
         "https://claude.ai/*"
@@ -32,7 +32,7 @@
     },
     {
       "js": [
-        "assets/chatgpt.ts-loader-Da40fkPO.js"
+        "assets/chatgpt.ts-loader-vkgmBmpu.js"
       ],
       "matches": [
         "https://chatgpt.com/*"
@@ -40,7 +40,7 @@
     },
     {
       "js": [
-        "assets/gemini.ts-loader-CVgjudae.js"
+        "assets/gemini.ts-loader-C7srVKu4.js"
       ],
       "matches": [
         "https://gemini.google.com/*"
@@ -62,9 +62,9 @@
         "https://claude.ai/*"
       ],
       "resources": [
-        "assets/shadow-host-CngAOAJN.js",
+        "assets/shadow-host-BgrB9ZJu.js",
         "assets/constants-Df1cEB2j.js",
-        "assets/claude.ts-CbGstcTI.js"
+        "assets/claude.ts-yxGlr8nb.js"
       ],
       "use_dynamic_url": false
     },
@@ -73,9 +73,9 @@
         "https://chatgpt.com/*"
       ],
       "resources": [
-        "assets/shadow-host-CngAOAJN.js",
+        "assets/shadow-host-BgrB9ZJu.js",
         "assets/constants-Df1cEB2j.js",
-        "assets/chatgpt.ts-CYuwXxKf.js"
+        "assets/chatgpt.ts-Cbhudkac.js"
       ],
       "use_dynamic_url": false
     },
@@ -84,9 +84,9 @@
         "https://gemini.google.com/*"
       ],
       "resources": [
-        "assets/shadow-host-CngAOAJN.js",
+        "assets/shadow-host-BgrB9ZJu.js",
         "assets/constants-Df1cEB2j.js",
-        "assets/gemini.ts-Du9elNlT.js"
+        "assets/gemini.ts-T8xz00SQ.js"
       ],
       "use_dynamic_url": false
     }

@@ -18,6 +18,13 @@ chrome.runtime.onMessage.addListener(
   }
 );
 
+/** Notify side panel that data has changed so it can reload. */
+function notifyDataChanged() {
+  chrome.runtime.sendMessage({ type: 'DATA_CHANGED' }).catch(() => {
+    // No listeners — side panel may not be open. Safe to ignore.
+  });
+}
+
 async function handleMessage(message: Message): Promise<unknown> {
   switch (message.type) {
     case 'SAVE_ITEM': {
@@ -29,6 +36,7 @@ async function handleMessage(message: Message): Promise<unknown> {
         updatedAt: now,
       };
       await db.savedItems.add(item);
+      notifyDataChanged();
       return { success: true, id: item.id };
     }
 
@@ -59,6 +67,7 @@ async function handleMessage(message: Message): Promise<unknown> {
         order: count,
       };
       await db.boards.add(board);
+      notifyDataChanged();
       return board;
     }
 

@@ -16,15 +16,25 @@ export function BoardList({ boards, onSelect, onCreate, onDelete }: BoardListPro
   const [newColor, setNewColor] = useState(DEFAULT_BOARD_COLORS[0]);
   const [itemCounts, setItemCounts] = useState<Record<string, number>>({});
 
-  useEffect(() => {
-    async function loadCounts() {
-      const counts: Record<string, number> = {};
-      for (const board of boards) {
-        counts[board.id] = await db.savedItems.where('boardId').equals(board.id).count();
-      }
-      setItemCounts(counts);
+  const loadCounts = async () => {
+    const counts: Record<string, number> = {};
+    for (const board of boards) {
+      counts[board.id] = await db.savedItems.where('boardId').equals(board.id).count();
     }
+    setItemCounts(counts);
+  };
+
+  useEffect(() => {
     loadCounts();
+  }, [boards]);
+
+  // Recalculate counts when background notifies data changed (new item saved)
+  useEffect(() => {
+    const onMessage = (message: { type: string }) => {
+      if (message.type === 'DATA_CHANGED') loadCounts();
+    };
+    chrome.runtime.onMessage.addListener(onMessage);
+    return () => chrome.runtime.onMessage.removeListener(onMessage);
   }, [boards]);
 
   const handleCreate = () => {
