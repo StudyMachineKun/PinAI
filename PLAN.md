@@ -583,8 +583,8 @@ LICENSE
 ### Phase 4: Polish + hardening
 - [ ] 4.1 Keyboard shortcuts
 - [ ] 4.2 Empty states and onboarding
-- [ ] 4.3 Error handling and resilience
-- [ ] 4.4 SPA navigation handling
+- [x] 4.3 Error handling and resilience (DATA_CHANGED listener for sidepanel reactivity)
+- [x] 4.4 SPA navigation handling (URL change detection + re-scan in all 3 platform scripts)
 - [ ] 4.5 Performance optimizations
 - [ ] 4.6 Extension icon + branding (placeholder icons created)
 - [ ] 4.7 Context menu integration
@@ -645,4 +645,11 @@ LICENSE
 - **reinject.ts**: Utility for formatting content for re-injection (shared format string). Used by content scripts.
 
 **Issues encountered:**
-- None — Phase 3 was straightforward. All components built incrementally, `tsc` and `vite build` passed on first attempt after all components were wired together.
+1. **Save dialog board creation not reflected in side panel.** The save dialog (content script) creates boards via `CREATE_BOARD` message to the background service worker. The service worker calls `notifyDataChanged()` which sends a `DATA_CHANGED` message — but the sidepanel had no `chrome.runtime.onMessage` listener for it. Boards created from the save dialog were invisible in the side panel until a full page reload.
+2. **Item counts not updating in board list after saving a pin.** Same root cause — the `BoardList.tsx` component recalculated item counts only when the `boards` array changed, but saving an item to an existing board doesn't change the boards array.
+
+**Fixes applied:**
+- Added `chrome.runtime.onMessage` listener in `useBoards.ts` that calls `loadBoards()` on `DATA_CHANGED` messages. This ensures new boards created from content scripts appear immediately in the side panel.
+- Added a separate `chrome.runtime.onMessage` listener in `BoardList.tsx` that recalculates item counts on `DATA_CHANGED` messages. This ensures item counts update immediately when pins are saved.
+- Also improved `useSavedItems.ts` and `shadow-host.ts` with `DATA_CHANGED` listener and context validity check respectively.
+- Fixed Claude platform adapter selectors to use `.font-claude-response` (verified 2026-03-24) and improved content extraction to target specific child elements (`p.font-claude-response-body`, `pre`, `ol`, `ul`, headings, `table`).
