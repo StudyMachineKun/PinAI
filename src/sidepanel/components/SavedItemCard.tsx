@@ -106,14 +106,29 @@ export const SavedItemCard = memo(function SavedItemCard({
         </div>
       </div>
 
-      {/* Content preview */}
-      <div
-        onClick={() => needsTruncation && setExpanded(!expanded)}
-        className={`text-sm text-gray-700 ${needsTruncation ? 'cursor-pointer' : ''} ${expanded ? '' : 'line-clamp-3'}`}
-      >
-        {expanded ? item.contentPlain : previewText}
-        {needsTruncation && !expanded && '...'}
-      </div>
+      {/* Content preview / expanded */}
+      {expanded ? (
+        <div>
+          <div
+            className="pb-content"
+            dangerouslySetInnerHTML={{ __html: item.content }}
+          />
+          <button
+            onClick={() => setExpanded(false)}
+            className="text-xs text-[#6C5CE7] hover:text-[#5A4BD1] mt-1"
+          >
+            Show less ↑
+          </button>
+        </div>
+      ) : (
+        <div
+          onClick={() => needsTruncation && setExpanded(true)}
+          className={`text-sm text-gray-700 ${needsTruncation ? 'cursor-pointer' : ''} line-clamp-3`}
+        >
+          {previewText}
+          {needsTruncation && '...'}
+        </div>
+      )}
 
       {/* Note */}
       <NoteEditor

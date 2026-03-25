@@ -168,6 +168,38 @@ function waitForStreamingComplete(messageEl: HTMLElement, callback: (el: HTMLEle
   resetTimer();
 }
 
+/** Clear pinned attributes from old conversation messages. */
+function clearPinnedAttributes() {
+  document.querySelectorAll(`[${PINNED_ATTR}]`).forEach((el) => {
+    el.removeAttribute(PINNED_ATTR);
+    el.querySelectorAll('[data-pinboard]').forEach((child) => child.remove());
+  });
+}
+
+/** Poll for assistant messages after SPA navigation, injecting pins once found. */
+function pollForMessages() {
+  let elapsed = 0;
+  const interval = setInterval(() => {
+    if (!isContextValid()) { clearInterval(interval); return; }
+    elapsed += 500;
+    const msgs = chatgptAdapter.getAssistantMessages();
+    if (msgs.length > 0) {
+      clearInterval(interval);
+      for (const msg of msgs) chatgptAdapter.injectPinButton(msg);
+    } else if (elapsed >= 10_000) {
+      clearInterval(interval);
+    }
+  }, 500);
+}
+
+function handleNavigation(lastUrl: { value: string }) {
+  if (location.href === lastUrl.value) return;
+  lastUrl.value = location.href;
+  console.log('[Pinboard] ChatGPT SPA navigation detected');
+  clearPinnedAttributes();
+  pollForMessages();
+}
+
 function init() {
   if (!isContextValid()) return;
   console.log('[Pinboard] Content script loaded on chatgpt.com');
@@ -182,21 +214,27 @@ function init() {
     chatgptAdapter.injectPinButton(msg);
   });
 
-  let lastUrl = location.href;
+  // SPA navigation detection — three complementary approaches
+  const lastUrl = { value: location.href };
+
+  // 1. MutationObserver on body — catches most SPA navigations
   const urlObserver = new MutationObserver(() => {
     if (!isContextValid()) { urlObserver.disconnect(); return; }
-    if (location.href !== lastUrl) {
-      lastUrl = location.href;
-      setTimeout(() => {
-        if (!isContextValid()) return;
-        const msgs = chatgptAdapter.getAssistantMessages();
-        for (const msg of msgs) {
-          chatgptAdapter.injectPinButton(msg);
-        }
-      }, 1000);
-    }
+    handleNavigation(lastUrl);
   });
   urlObserver.observe(document.body, { childList: true, subtree: true });
+
+  // 2. Navigation API (modern browsers)
+  if ('navigation' in window) {
+    (window as any).navigation.addEventListener('navigate', () => {
+      setTimeout(() => handleNavigation(lastUrl), 0);
+    });
+  }
+
+  // 3. popstate for back/forward navigation
+  window.addEventListener('popstate', () => {
+    handleNavigation(lastUrl);
+  });
 
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === 'PASTE_INTO_INPUT') {

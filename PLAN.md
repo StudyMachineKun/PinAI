@@ -584,7 +584,7 @@ LICENSE
 - [ ] 4.1 Keyboard shortcuts
 - [ ] 4.2 Empty states and onboarding
 - [x] 4.3 Error handling and resilience (DATA_CHANGED listener for sidepanel reactivity)
-- [x] 4.4 SPA navigation handling (URL change detection + re-scan in all 3 platform scripts)
+- [x] 4.4 SPA navigation handling (robust: polling + Navigation API + popstate + MutationObserver)
 - [ ] 4.5 Performance optimizations
 - [ ] 4.6 Extension icon + branding (placeholder icons created)
 - [ ] 4.7 Context menu integration
@@ -653,3 +653,36 @@ LICENSE
 - Added a separate `chrome.runtime.onMessage` listener in `BoardList.tsx` that recalculates item counts on `DATA_CHANGED` messages. This ensures item counts update immediately when pins are saved.
 - Also improved `useSavedItems.ts` and `shadow-host.ts` with `DATA_CHANGED` listener and context validity check respectively.
 - Fixed Claude platform adapter selectors to use `.font-claude-response` (verified 2026-03-24) and improved content extraction to target specific child elements (`p.font-claude-response-body`, `pre`, `ol`, `ul`, headings, `table`).
+
+### Phase 4 (partial) — 2026-03-25
+
+**ChatGPT SPA navigation fix:**
+The original SPA navigation handler in chatgpt.ts used a single `setTimeout(1000)` after detecting a URL change via MutationObserver. This was unreliable because ChatGPT's conversation load time varies. Also, old conversation messages kept `data-pinboard-pinned` attributes so they'd be skipped on re-scan.
+
+**Fix applied (chatgpt.ts):**
+1. **Triple navigation detection**: MutationObserver on body + Navigation API (`navigation.addEventListener('navigate')`) + `popstate` event listener. All three funnel through a single `handleNavigation()` that deduplicates via `lastUrl` comparison.
+2. **Clear pinned attributes on navigation**: `clearPinnedAttributes()` removes `data-pinboard-pinned` and `[data-pinboard]` anchors from all elements, ensuring a clean slate for the new conversation.
+3. **Polling for new messages**: `pollForMessages()` checks every 500ms for up to 10 seconds for assistant messages to appear. Injects pins as soon as messages are found. This handles ChatGPT's variable load times.
+
+**Gemini selector fix (gemini.ts):**
+Gemini's DOM structure was different from what the original selectors expected. Key findings:
+- Assistant responses are `<model-response>` custom elements, not `message-content.model-response-text`.
+- Parent container is `div.conversation-container`, not `.conversation-turn`.
+- Inside `model-response`, actual text content is in `message-content div.markdown`.
+- Must exclude: `div.model-thoughts` / `div.thoughts-container` (thinking section), `div.response-container-header` ("Gemini said"), `div.actions-container-v2` (buttons).
+
+**Fix applied (gemini.ts):**
+1. Updated `SELECTORS.assistantMessage` to `'model-response'`.
+2. Updated `SELECTORS.turnContainer` to `'.conversation-container'`.
+3. Added `markdownContent` and `contentElements` selectors for targeted content extraction.
+4. `extractContent()` now scopes to `message-content div.markdown` and only grabs `p, ol, ul, pre, h3, table, hr, code` elements. Excludes thinking, header, and action buttons.
+5. `contentPlain` in `onPin` handler uses same scoped selectors instead of `el.textContent` (which captured thinking/header/buttons text).
+6. `extractPrecedingPrompt()` walks `.conversation-container` siblings to find preceding `user-message-text`.
+
+**SavedItemCard expanded view (SavedItemCard.tsx + index.css):**
+The expanded view rendered `item.contentPlain` — raw unformatted text with no structure.
+
+**Fix applied:**
+1. Expanded view now renders `item.content` (HTML) via `dangerouslySetInnerHTML` inside a `.pb-content` wrapper. Collapsed preview still uses `contentPlain` with `line-clamp-3`.
+2. Added "Show less" button below expanded content.
+3. Added `.pb-content` CSS styles in `src/sidepanel/index.css` covering: paragraph spacing, heading sizes (h1-h4), list indentation, code blocks (gray bg, rounded, `overflow-x: auto`, monospace), inline code, table borders, blockquotes with purple left border accent, strong/em, hr. All sized for narrow side panel (~320px).

@@ -34,6 +34,7 @@ pinboard/
 │   │   └── save-dialog.ts         # Quick save modal (project, note, action)
 │   ├── sidepanel/
 │   │   ├── index.html             # Side panel entry
+│   │   ├── index.css              # Tailwind + .pb-content styles for rendered HTML
 │   │   ├── App.tsx                # Root component
 │   │   ├── components/
 │   │   │   ├── BoardList.tsx      # List of project boards
@@ -170,13 +171,39 @@ Platform UIs change frequently. To manage this:
 ```typescript
 // Example: claude.ts
 const SELECTORS = {
-  // Last verified: 2026-03-23
-  assistantMessage: '[data-testid="assistant-message"], .font-claude-message',
-  userMessage: '[data-testid="user-message"], .font-user-message',
-  chatInput: '[contenteditable="true"].ProseMirror',
+  // Last verified: 2026-03-24
+  assistantMessage: '.font-claude-response',
+  userMessage: '.font-user-message',
+  messageContainer: '.contents',
+  chatInput: '[contenteditable="true"]',
   conversationTitle: 'title',
-  messageContainer: '[data-testid="conversation-turn"]',
 } as const;
+
+// Example: chatgpt.ts
+const SELECTORS = {
+  // Last verified: 2026-03-24
+  assistantMessage: '[data-message-author-role="assistant"]',
+  userMessage: '[data-message-author-role="user"]',
+  chatInput: '#prompt-textarea',
+  conversationTitle: 'title',
+  conversationContainer: '[role="presentation"] .flex.flex-col',
+  turnContainer: '[data-testid^="conversation-turn-"]',
+} as const;
+
+// Example: gemini.ts
+const SELECTORS = {
+  // Last verified: 2026-03-25
+  assistantMessage: 'model-response',              // Custom element, NOT message-content
+  userMessage: 'message-content.user-message-text',
+  chatInput: '.ql-editor[contenteditable="true"], rich-textarea .ql-editor',
+  conversationTitle: 'title',
+  conversationContainer: '.conversation-container, main',
+  turnContainer: '.conversation-container',
+  markdownContent: 'message-content div.markdown', // Actual text content lives here
+  contentElements: 'p, ol, ul, pre, h3, table, hr, code',
+} as const;
+// Gemini note: exclude div.model-thoughts, div.response-container-header,
+// div.actions-container-v2 — only extract from markdownContent.
 ```
 
 ## Coding conventions
@@ -184,12 +211,16 @@ const SELECTORS = {
 - Use TypeScript strict mode
 - Use functional React components with hooks only (no class components)
 - Use Tailwind utility classes for styling — no CSS modules or styled-components
+- Custom CSS for rendered HTML content uses `.pb-content` class in `src/sidepanel/index.css`
 - Name files in kebab-case for utilities, PascalCase for React components
 - Use named exports (not default exports) for everything except React page components
 - Keep content scripts lean — heavy logic belongs in the background service worker or shared utils
 - Use `chrome.runtime.sendMessage` for communication between content scripts and background/sidepanel
 - Error handling: wrap all DOM operations in try-catch (platform UIs can change without notice)
 - All user-facing strings should be in English (i18n is a future concern, not v1)
+- SPA navigation in content scripts must use three detection methods together: MutationObserver on body, Navigation API (`navigation.addEventListener('navigate')`), and `popstate` events — all funneled through a single handler that deduplicates via URL comparison
+- After SPA navigation, clear all `data-pinboard-pinned` attributes and poll for new messages (every 500ms, up to 10s) rather than using a single timeout
+- `item.content` stores extracted HTML; `item.contentPlain` stores plain text for search. The expanded view in SavedItemCard renders HTML via `dangerouslySetInnerHTML`, the collapsed preview uses `contentPlain`
 
 ## What not to build (scope boundaries)
 

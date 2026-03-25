@@ -3,14 +3,16 @@ import { createPinButton, flashPinButtonSuccess } from '../pin-button';
 import { showSaveDialog, type SaveDialogData } from '../save-dialog';
 import { getShadowRoot, isContextValid } from '../shadow-host';
 
-// Last verified: 2026-03-24
+// Last verified: 2026-03-25
 const SELECTORS = {
-  assistantMessage: 'message-content.model-response-text',
+  assistantMessage: 'model-response',
   userMessage: 'message-content.user-message-text',
   chatInput: '.ql-editor[contenteditable="true"], rich-textarea .ql-editor',
   conversationTitle: 'title',
   conversationContainer: '.conversation-container, main',
-  turnContainer: '.conversation-turn',
+  turnContainer: '.conversation-container',
+  markdownContent: 'message-content div.markdown',
+  contentElements: 'p, ol, ul, pre, h3, table, hr, code',
 } as const;
 
 const PINNED_ATTR = 'data-pinboard-pinned';
@@ -24,18 +26,24 @@ const geminiAdapter: PlatformAdapter = {
   },
 
   extractContent(messageEl: HTMLElement): string {
-    // Gemini may use web components / shadow DOM — try to get inner content
-    const clone = messageEl.cloneNode(true) as HTMLElement;
+    const markdown = messageEl.querySelector(SELECTORS.markdownContent);
+    if (!markdown) return '';
+    const clone = markdown.cloneNode(true) as HTMLElement;
     clone.querySelectorAll('[data-pinboard]').forEach((el) => el.remove());
-    return clone.innerHTML;
+    const parts: string[] = [];
+    clone.querySelectorAll(SELECTORS.contentElements).forEach((el) => {
+      parts.push(el.outerHTML);
+    });
+    return parts.join('\n');
   },
 
   extractPrecedingPrompt(messageEl: HTMLElement): string | null {
     try {
-      const turn = messageEl.closest(SELECTORS.turnContainer);
-      if (!turn) return null;
+      // model-response sits inside a .conversation-container
+      const container = messageEl.closest(SELECTORS.turnContainer);
+      if (!container) return null;
 
-      let prev = turn.previousElementSibling;
+      let prev = container.previousElementSibling;
       while (prev) {
         const userMsg = prev.querySelector(SELECTORS.userMessage);
         if (userMsg) return userMsg.textContent?.trim() || null;
@@ -88,7 +96,9 @@ const geminiAdapter: PlatformAdapter = {
       onPin: (el) => {
         const data: SaveDialogData = {
           content: geminiAdapter.extractContent(el),
-          contentPlain: el.textContent?.trim() || '',
+          contentPlain: Array.from(
+            el.querySelectorAll(`${SELECTORS.markdownContent} ${SELECTORS.contentElements}`)
+          ).map((e) => e.textContent?.trim() ?? '').filter(Boolean).join('\n'),
           promptContext: geminiAdapter.extractPrecedingPrompt(el) || undefined,
           platform: 'gemini',
           conversationTitle: geminiAdapter.getConversationTitle() || undefined,
