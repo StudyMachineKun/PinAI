@@ -120,7 +120,8 @@ const geminiAdapter: PlatformAdapter = {
       const input = document.querySelector<HTMLElement>(SELECTORS.chatInput);
       if (!input) return;
 
-      const formatted = `Here is a previous AI output I'd like to reference:\n\n---\n${text}\n---\n\nContinue from here / use this as context for the following request:\n`;
+      const normalized = text.replace(/\n{3,}/g, '\n\n').trim();
+      const formatted = `Here is a previous AI output I'd like to reference:\n---\n${normalized}\n---\nContinue from here / use this as context for the following request:\n`;
 
       input.focus();
       document.execCommand('insertText', false, formatted);
