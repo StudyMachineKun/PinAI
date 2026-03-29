@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PinAI — AI Knowledge Library",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Save, organize, and re-use the best outputs from your AI conversations.",
   "permissions": [
     "sidePanel",
